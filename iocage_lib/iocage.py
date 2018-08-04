@@ -1010,7 +1010,7 @@ class IOCage(object):
             elif prop == "all":
                 _props = {}
 
-                props = ioc_json.IOCJson(path).json_get_value(prop)
+                props = ioc_json.IOCJson(path)
 
                 # We want this sorted below, so we add it to the old dict
                 props["state"] = state
@@ -1243,9 +1243,9 @@ class IOCage(object):
                 silent=self.silent)
 
         if conf["template"] == "yes":
-            target = f"{self.pool}/iocage/templates/{uuid}"
+            target = f"{self.root_dataset.name}/templates/{uuid}"
         else:
-            target = f"{self.pool}/iocage/jails/{uuid}"
+            target = f"{self.root_dataset.name}/jails/{uuid}"
 
         try:
             datasets = self.zfs.get_dataset(target)
@@ -1295,6 +1295,7 @@ class IOCage(object):
                 },
                 _callback=self.callback,
                 silent=self.silent)
+            raise
 
         if key == "ip4_addr" or key == "ip6_addr":
             # We don't want spaces here
@@ -1535,9 +1536,10 @@ class IOCage(object):
                 self.__jail_order__("start")
         else:
             uuid, path = self.__check_jail_existence__()
-            conf = ioc_json.IOCJson(path, silent=self.silent).json_load()
-            host_release = float(os.uname()[2].rsplit("-", 1)[0].rsplit("-",
-                                                                        1)[0])
+            conf = ioc_json.IOCJson(path, silent=self.silent)
+            host_release = float(
+                os.uname()[2].rsplit("-", 1)[0].rsplit("-", 1)[0]
+            )
             release = conf["release"]
 
             if release != "EMPTY":
@@ -1588,8 +1590,7 @@ class IOCage(object):
                 self.__jail_order__("stop")
         else:
             uuid, path = self.__check_jail_existence__()
-            conf = ioc_json.IOCJson(path, silent=self.silent, stop=True
-                                    ).json_load()
+            conf = ioc_json.IOCJson(path, silent=self.silent, stop=True)
             ioc_stop.IOCStop(
                 uuid,
                 path,
@@ -1600,8 +1601,7 @@ class IOCage(object):
     def update(self):
         """Updates a jail to the latest patchset."""
         uuid, path = self.__check_jail_existence__()
-        conf = ioc_json.IOCJson(path, silent=self.silent, stop=True
-                                ).json_load()
+        conf = ioc_json.IOCJson(path, silent=self.silent, stop=True)
         freebsd_version = ioc_common.checkoutput(["freebsd-version"])
         status, jid = self.list("jid", uuid=uuid)
         started = False
@@ -1694,7 +1694,7 @@ class IOCage(object):
         uuid, path = self.__check_jail_existence__()
         root_path = f"{path}/root"
         status, jid = self.list("jid", uuid=uuid)
-        conf = ioc_json.IOCJson(path).json_load()
+        conf = ioc_json.IOCJson(path)
 
         if release is None and conf["type"] != "pluginv2":
             ioc_common.logit({

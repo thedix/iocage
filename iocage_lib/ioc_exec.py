@@ -71,7 +71,7 @@ class IOCExec(object):
             user = self.host_user
 
         status, _ = iocage_lib.ioc_list.IOCList().list_get_jid(self.uuid)
-        conf = iocage_lib.ioc_json.IOCJson(self.path).json_load()
+        conf = iocage_lib.ioc_json.IOCJson(self.path)
         exec_fib = conf["exec_fib"]
 
         if not status:
