@@ -51,9 +51,9 @@ class IOCStart(object):
         self.silent = silent
 
         try:
-            self.pool = iocage_lib.ioc_json.IOCJson(" ").json_get_value("pool")
+            self.pool = iocage_lib.ioc_json.IOCJson(" ").pool
             ioc_json_pool = iocage_lib.ioc_json.IOCJson(self.pool)
-            self.iocroot = ioc_json_pool.json_get_value("iocroot")
+            self.iocroot = ioc_json_pool.iocroot.mountpoint
             self.ioc_json = iocage_lib.ioc_json.IOCJson(self.path, silent=True)
             self.exec_fib = self._get_conf_value("exec_fib")
             self.__start_jail__()
