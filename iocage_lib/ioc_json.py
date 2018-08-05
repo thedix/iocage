@@ -919,72 +919,70 @@ class IOCJson(dict):
         conf["sysvshm"] = sysvshm
 
         # Version 3 keys
+        release = conf.get("release", None)
 
-        if not default:
-            release = conf.get("release", None)
+        if release is None:
+            err_name = self.location.rsplit("/", 1)[-1]
+            iocage.lib.ioc_common.logit(
+                {
+                    "level":
+                    "EXCEPTION",
+                    "message":
+                    f"{err_name} has a corrupt configuration,"
+                    " please destroy the jail."
+                },
+                _callback=self.callback,
+                silent=self.silent)
 
-            if release is None:
-                err_name = self.location.rsplit("/", 1)[-1]
-                iocage_lib.ioc_common.logit(
-                    {
-                        "level":
-                        "EXCEPTION",
-                        "message":
-                        f"{err_name} has a corrupt configuration,"
-                        " please destroy the jail."
-                    },
-                    _callback=self.callback,
-                    silent=self.silent)
+        release = release.rsplit("-p", 1)[0]
+        cloned_release = conf.get("cloned_release", "LEGACY_JAIL")
 
-            release = release.rsplit("-p", 1)[0]
-            cloned_release = conf.get("cloned_release", "LEGACY_JAIL")
+        host_hostuuid = self["host_hostuuid"]
+        freebsd_version_files = [
+            (
+                f"{self.iocroot.mountpoint}/releases/{release}"
+                "/root/bin/freebsd-version"
+            ),
+            (
+                f"{self.iocroot.mountpoint}/templates/{host_hostuuid}"
+                "/root/bin/freebsd-version"
+            )
+        ]
 
-            host_hostuuid = self["host_hostuuid"]
-            freebsd_version_files = [
-                (
-                    f"{self.iocroot.mountpoint}/releases/{release}"
-                    "/root/bin/freebsd-version"
-                ),
-                (
-                    f"{self.iocroot.mountpoint}/templates/{host_hostuuid}"
-                    "/root/bin/freebsd-version"
-                )
-            ]
+        selected_freebsd_version_file = None
+        for freebsd_version_file in freebsd_version_files:
+            if os.path.exists(freebsd_version_file) is False:
+                continue
+            selected_freebsd_version_file = freebsd_version_file
+            break
 
-            selected_freebsd_version_file = None
-            for freebsd_version_file in freebsd_version_files:
-                if os.path.exists(freebsd_version_file) is False:
-                    continue
-                selected_freebsd_version_file = freebsd_version_file
-                break
+        if selected_freebsd_version_file is None:
+            # At this point it should be a real misconfigured jail
+            uuid = self.location.rsplit("/", 1)[-1]
+            raise RuntimeError(
+                "Configuration is missing!"
+                f" Please destroy {uuid} and recreate it."
+            )
 
-            if selected_freebsd_version_file is None:
-                # At this point it should be a real misconfigured jail
-                uuid = self.location.rsplit("/", 1)[-1]
-                raise RuntimeError(
-                    "Configuration is missing!"
-                    f" Please destroy {uuid} and recreate it."
-                )
+        if release[:4].endswith("-"):
+            # 9.3-RELEASE and under don't actually have this binary.
+            release = conf["release"]
+        else:
+            release = self.host_release
+            cloned_release = conf["release"]
 
-            if release[:4].endswith("-"):
-                # 9.3-RELEASE and under don't actually have this binary.
-                release = conf["release"]
-            else:
-                release = self.host_release
-                cloned_release = conf["release"]
+        # Set all Version 3 keys
+        conf["release"] = release
+        conf["cloned_release"] = cloned_release
 
-            # Set all Version 3 keys
-            conf["release"] = release
-            conf["cloned_release"] = cloned_release
+        # Version 4 keys
+        try:
+            basejail = conf["basejail"]
+        except KeyError:
+            basejail = "no"
+        # Set all keys, even if it's the same value.
 
-            # Version 4 keys
-            try:
-                basejail = conf["basejail"]
-            except KeyError:
-                basejail = "no"
-
-            # Set all keys, even if it's the same value.
-            conf["basejail"] = basejail
+        conf["basejail"] = basejail
 
         # Version 5 keys
         try:
@@ -1084,32 +1082,31 @@ class IOCJson(dict):
         # Set all keys, even if it's the same value.
         conf["hostid_strict_check"] = hostid_strict_check
 
-        if not default:
-            try:
-                if not renamed:
-                    self.json_write(conf)
-            except FileNotFoundError:
-                # Dataset was renamed.
-                self.location = f"{self.iocroot.mountpoint}/jails/{tag}"
-
+        try:
+            if not renamed:
                 self.json_write(conf)
-                messages = collections.OrderedDict(
-                    [("1-NOTICE", "*" * 80),
-                     ("2-WARNING", f"Jail: {uuid} was renamed to {tag}"),
-                     ("3-NOTICE",
-                      f"{'*' * 80}\n"), ("4-EXCEPTION",
-                                         "Please issue your command again.")])
+        except FileNotFoundError:
+            # Dataset was renamed.
+            self.location = f"{self.iocroot.mountpoint}/jails/{tag}"
 
-                for level, msg in messages.items():
-                    level = level.partition("-")[2]
+            self.json_write(conf)
+            messages = collections.OrderedDict(
+                [("1-NOTICE", "*" * 80),
+                 ("2-WARNING", f"Jail: {uuid} was renamed to {tag}"),
+                 ("3-NOTICE",
+                  f"{'*' * 80}\n"), ("4-EXCEPTION",
+                                     "Please issue your command again.")])
 
-                    iocage_lib.ioc_common.logit(
-                        {
-                            "level": level,
-                            "message": msg
-                        },
-                        _callback=self.callback,
-                        silent=self.silent)
+            for level, msg in messages.items():
+                level = level.partition("-")[2]
+
+                iocage_lib.ioc_common.logit(
+                    {
+                        "level": level,
+                        "message": msg
+                    },
+                    _callback=self.callback,
+                    silent=self.silent)
 
         # The above doesn't get triggered with legacy short UUIDs
 
@@ -1683,15 +1680,11 @@ class IOCJson(dict):
         return self._hostid
 
     @property
-    def defaults_config_file(self):
-        return f"{self.root_dataset.mountpoint}/defaults.json"
-
-    @property
     def user_default_properties(self):
         try:
-            return self.json_check_config(
-                self.json_read(self.defaults_config_file),
-                default=True
+            return self.json_read(
+                "/defaults.json",
+                location=self.root_dataset.mountpoint
             )
         except FileNotFoundError:
             return None
