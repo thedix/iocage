@@ -336,7 +336,7 @@ class IOCCreate(object):
                 ).__destroy_parse_datasets__(
                     f"{self.iocroot.name}/jails/{jail_uuid}"
                 )
-                iocage_lib.ioc_common.logit({
+                iocage_lib.ioc_common.logit(
                     {
                         "level": "EXCEPTION",
                         "message": "You cannot name a jail default, "
